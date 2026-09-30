@@ -19,15 +19,17 @@ from sqlalchemy import (
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime, date
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 
 # Configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./budget.db")
 BOT_TOKEN = os.getenv("BOT_TOKEN", "123456:TEST_TOKEN")  # Will need real token for production
 DEBUG = os.getenv("DEBUG", "false").lower() == "true"
+PUBLIC_URL = os.getenv("PUBLIC_URL", "http://153.76.249.189:8088").rstrip("/")
+WEBAPP_URL = os.getenv("WEBAPP_URL", "")  # optional Telegram Web App HTTPS endpoint
 
 # Database setup
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
@@ -350,44 +352,63 @@ def get_main_keyboard():
     builder = ReplyKeyboardBuilder()
     builder.add(KeyboardButton(text="/start"))
     builder.add(KeyboardButton(text="/help"))
-    builder.add(KeyboardButton(text="/add_income"))
-    builder.add(KeyboardButton(text="/add_expense"))
     builder.add(KeyboardButton(text="/stats"))
     builder.add(KeyboardButton(text="/report"))
     builder.add(KeyboardButton(text="/recent"))
-    builder.add(KeyboardButton(text="/reset"))
     builder.add(KeyboardButton(text="/categories"))
+    builder.add(KeyboardButton(text="/reset"))
+    builder.add(KeyboardButton(text="🌐 Web Dashboard"))
     builder.adjust(2)
     return builder.as_markup(resize_keyboard=True)
+
+def get_web_button():
+    buttons = [
+        InlineKeyboardButton(text="🌐 Buka Dashboard Web", url=PUBLIC_URL)
+    ]
+    if WEBAPP_URL:
+        buttons.append(InlineKeyboardButton(text="📱 Buka di Telegram (Web App)", web_app=WebAppInfo(url=WEBAPP_URL)))
+    return InlineKeyboardMarkup(inline_keyboard=[buttons])
+
+def get_main_with_web():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="🌐 Buka Dashboard Web", url=PUBLIC_URL)]]
+    )
 
 # Bot handlers
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
-    await message.answer(
-        "💰 Welcome to Budget Tracker Bot!\n\n"
-        "I can help you track your income and expenses.\n"
-        "Use the buttons below or type commands:\n"
-        "/add_income - Add income transaction\n"
-        "/add_expense - Add expense transaction\n"
-        "/stats - View monthly statistics\n"
-        "/categories - View categories\n"
-        "/help - Show help",
-        reply_markup=get_main_keyboard()
+    text = (
+        "💰 **Sky Budget Tracker**\n\n"
+        "Halo Bos! Sekarang Bos bisa interaksi penuh langsung di **Web Dashboard** tanpa perlu ribet ketik perintah di bot lagi. 😎\n\n"
+        "Klik tombol **🌐 Buka Dashboard Web** di bawah buat langsung akses:\n"
+        f"🔗 `{PUBLIC_URL}`\n\n"
+        "Kalau tetap butuh info ringkas di sini:\n"
+        "• `/stats` - Ringkasan saldo berjalan\n"
+        "• `/report` - Pos pengeluaran terbanyak\n"
+        "• `/recent` - 10 transaksi terakhir\n"
+        "• `/reset` - Arsipkan bulan ini"
     )
+    await message.answer(text, parse_mode="Markdown", reply_markup=get_web_button())
 
 @dp.message(Command("help"))
 async def cmd_help(message: Message):
-    await message.answer(
-        "📋 Budget Tracker Help:\n\n"
-        "💰 /add_income - Add income\n"
-        "💸 /add_expense - Add expense\n"
-        "📊 /stats - View statistics\n"
-        "📂 /categories - View categories\n"
-        "\nWhen adding transactions, please provide:\n"
-        "Amount Description Category\n"
-        "Example: 50000 Groceries Food & Groceries",
-        reply_markup=get_main_keyboard()
+    text = (
+        "📋 **Sky Budget Help**\n\n"
+        "**Langkah utama:**\n"
+        "1️⃣ Tekan tombol **🌐 Buka Dashboard Web** di atas atau ketik `/web`\n"
+        "2️⃣ Input transaksi via form web, atau via bot dengan format:\n"
+        "   `50000 Kopi kopdar` atau `500k Gaji fulltime`\n"
+        "3️⃣ Lihat **Breakdown Pengeluaran per Pos** di web (bar chart)\n"
+        "4️⃣ Pada akhir bulan, tekan **Reset Bulan Ini (Arsipkan)** di web\n\n"
+        "**Commands tetap aktif (untuk yang suka ketik):**\n"
+        "• `/stats` - Statistik saldo berjalan (income/expense/balance)\n"
+        "• `/report` - Breakdown pengeluaran per kategori\n"
+        "• `/recent` - 10 transaksi terakhir\n"
+        "• `/categories` - Daftar kategori aktif\n"
+        "• `/reset` - Arsipkan transaksi bulan ini\n\n"
+        f"**Web Dashboard:** `{PUBLIC_URL}`"
     )
+    await message.answer(text, parse_mode="Markdown", reply_markup=get_web_button())
 
 @dp.message(Command("stats"))
 async def cmd_stats(message: Message):
@@ -426,9 +447,10 @@ async def cmd_stats(message: Message):
             f"💸 Pengeluaran: Rp {expense:,.0f}\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"{bal_icon} Saldo: Rp {balance:,.0f}\n\n"
-            f"📝 Total Transaksi: {count}x"
+            f"📝 Total Transaksi: {count}x\n\n"
+            "📈 Grafik breakdown pos & kontrol reset bulanan ada di web 👇"
         )
-        await message.answer(text, parse_mode="Markdown", reply_markup=get_main_keyboard())
+        await message.answer(text, parse_mode="Markdown", reply_markup=get_web_button())
     finally:
         db.close()
 
@@ -566,6 +588,20 @@ async def cmd_reset(message: Message):
         await message.answer(text, parse_mode="Markdown", reply_markup=get_main_keyboard())
     finally:
         db.close()
+
+@dp.message(Command("web"))
+@dp.message(F.text == "🌐 Web Dashboard")
+async def cmd_web(message: Message):
+    if bot is None:
+        await message.answer("Bot not configured. Please set BOT_TOKEN environment variable.")
+        return
+    text = (
+        "🌐 **Sky Budget Web Dashboard**\n\n"
+        "Klik tombol di bawah ini buat langsung buka web di browser Bos:\n"
+        f"🔗 `{PUBLIC_URL}`\n\n"
+        "✨ Semua fitur input, grafik breakdown pos, riwayat aktif, dan tombol reset bulanan langsung bisa dipakai di sana!"
+    )
+    await message.answer(text, parse_mode="Markdown", reply_markup=get_web_button())
 
 # Simple transaction adding (basic implementation)
 @dp.message(Command("add_income"))
