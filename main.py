@@ -56,6 +56,7 @@ class Transaction(Base):
     date = Column(DateTime, default=datetime.utcnow)
     type = Column(String, nullable=False)  # 'income' or 'expense'
     is_recurring = Column(Boolean, default=False)
+    archived = Column(Boolean, default=False)  # Soft archive for monthly reset
     created_at = Column(DateTime, default=datetime.utcnow)
 
 # Pydantic schemas
@@ -205,10 +206,10 @@ async def get_transactions(
     type: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
-    query = db.query(Transaction)
+    query = db.query(Transaction).filter(Transaction.archived == False)
     if type:
         query = query.filter(Transaction.type == type)
-    return query.offset(skip).limit(limit).all()
+    return query.order_by(Transaction.date.desc()).offset(skip).limit(limit).all()
 
 @app.post("/transactions/", response_model=TransactionResponse)
 async def create_transaction(transaction: TransactionCreate, db: Session = Depends(get_db)):
@@ -224,6 +225,41 @@ async def create_transaction(transaction: TransactionCreate, db: Session = Depen
     db.commit()
     db.refresh(db_transaction)
     return db_transaction
+
+@app.post("/reset-month/")
+async def reset_month(db: Session = Depends(get_db)):
+    """Reset current active period by archiving all unarchived transactions."""
+    now = datetime.utcnow()
+    # Count how many we are archiving
+    count = db.query(Transaction).filter(Transaction.archived == False).update({Transaction.archived: True})
+    db.commit()
+    return {"status": "success", "archived_transactions": count, "reset_at": now.isoformat()}
+
+@app.get("/history-months/")
+async def get_history_months(db: Session = Depends(get_db)):
+    """Get list of past months that have recorded transactions."""
+    # SQLite strftime for year-month
+    res = db.query(
+        func.strftime('%Y-%m', Transaction.date).label("month"),
+        Transaction.type,
+        func.sum(Transaction.amount).label("total"),
+        func.count(Transaction.id).label("count")
+    ).group_by("month", Transaction.type).order_by(desc("month")).all()
+    
+    months_dict = {}
+    for month, tx_type, total, cnt in res:
+        if month not in months_dict:
+            months_dict[month] = {"month": month, "income": 0.0, "expense": 0.0, "transactions": 0}
+        if tx_type == "income":
+            months_dict[month]["income"] = total
+        else:
+            months_dict[month]["expense"] = total
+        months_dict[month]["transactions"] += cnt
+        
+    for m in months_dict.values():
+        m["balance"] = m["income"] - m["expense"]
+        
+    return list(months_dict.values())
 
 @app.get("/stats/", response_model=StatsResponse)
 async def get_stats(
@@ -244,16 +280,19 @@ async def get_stats(
     income_query = select(func.sum(Transaction.amount)).where(
         Transaction.type == "income",
         Transaction.date >= start_dt,
-        Transaction.date <= end_dt
+        Transaction.date <= end_dt,
+        Transaction.archived == False
     )
     expense_query = select(func.sum(Transaction.amount)).where(
         Transaction.type == "expense",
         Transaction.date >= start_dt,
-        Transaction.date <= end_dt
+        Transaction.date <= end_dt,
+        Transaction.archived == False
     )
     count_query = select(func.count(Transaction.id)).where(
         Transaction.date >= start_dt,
-        Transaction.date <= end_dt
+        Transaction.date <= end_dt,
+        Transaction.archived == False
     )
     
     total_income = db.execute(income_query).scalar() or 0.0
@@ -287,6 +326,9 @@ def get_main_keyboard():
     builder.add(KeyboardButton(text="/add_income"))
     builder.add(KeyboardButton(text="/add_expense"))
     builder.add(KeyboardButton(text="/stats"))
+    builder.add(KeyboardButton(text="/report"))
+    builder.add(KeyboardButton(text="/recent"))
+    builder.add(KeyboardButton(text="/reset"))
     builder.add(KeyboardButton(text="/categories"))
     builder.adjust(2)
     return builder.as_markup(resize_keyboard=True)
@@ -320,6 +362,126 @@ async def cmd_help(message: Message):
         reply_markup=get_main_keyboard()
     )
 
+@dp.message(Command("stats"))
+async def cmd_stats(message: Message):
+    if bot is None:
+        await message.answer("Bot not configured. Please set BOT_TOKEN environment variable.")
+        return
+    
+    db = SessionLocal()
+    try:
+        now = datetime.utcnow()
+        start_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        
+        income = db.query(func.sum(Transaction.amount)).filter(
+            Transaction.type == "income",
+            Transaction.date >= start_month,
+            Transaction.archived == False
+        ).scalar() or 0.0
+        
+        expense = db.query(func.sum(Transaction.amount)).filter(
+            Transaction.type == "expense",
+            Transaction.date >= start_month,
+            Transaction.archived == False
+        ).scalar() or 0.0
+        
+        count = db.query(func.count(Transaction.id)).filter(
+            Transaction.date >= start_month,
+            Transaction.archived == False
+        ).scalar() or 0
+        
+        balance = income - expense
+        bal_icon = "🟢" if balance >= 0 else "🔴"
+        
+        text = (
+            f"📊 **Statistik Bulan Ini ({now.strftime('%B %Y')})**\n\n"
+            f"💰 Pemasukan: Rp {income:,.0f}\n"
+            f"💸 Pengeluaran: Rp {expense:,.0f}\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{bal_icon} Saldo: Rp {balance:,.0f}\n\n"
+            f"📝 Total Transaksi: {count}x"
+        )
+        await message.answer(text, parse_mode="Markdown", reply_markup=get_main_keyboard())
+    finally:
+        db.close()
+
+@dp.message(Command("recent"))
+async def cmd_recent(message: Message):
+    if bot is None:
+        await message.answer("Bot not configured. Please set BOT_TOKEN environment variable.")
+        return
+        
+    db = SessionLocal()
+    try:
+        txs = db.query(Transaction, Category.name, Category.icon).outerjoin(
+            Category, Transaction.category_id == Category.id
+        ).order_by(desc(Transaction.date)).limit(10).all()
+        
+        if not txs:
+            await message.answer("Belum ada riwayat transaksi nih, Bos!", reply_markup=get_main_keyboard())
+            return
+            
+        text = "🕒 **10 Transaksi Terakhir:**\n\n"
+        for t, cat_name, cat_icon in txs:
+            icon = "🟢" if t.type == "income" else "🔴"
+            desc_text = f" ({t.description})" if t.description else ""
+            cat_display = f"{cat_icon or '🏷️'} {cat_name or 'Umum'}"
+            date_str = t.date.strftime("%d/%m %H:%M")
+            text += f"{icon} `Rp {t.amount:,.0f}` • {cat_display}{desc_text} - _{date_str}_\n"
+            
+        await message.answer(text, parse_mode="Markdown", reply_markup=get_main_keyboard())
+    finally:
+        db.close()
+
+@dp.message(Command("report"))
+async def cmd_report(message: Message):
+    if bot is None:
+        await message.answer("Bot not configured. Please set BOT_TOKEN environment variable.")
+        return
+        
+    db = SessionLocal()
+    try:
+        now = datetime.utcnow()
+        start_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        
+        # Breakdown by category
+        res = db.query(
+            Category.name,
+            Category.icon,
+            Category.type,
+            func.sum(Transaction.amount).label("total")
+        ).join(
+            Transaction, Transaction.category_id == Category.id
+        ).filter(
+            Transaction.date >= start_month,
+            Transaction.archived == False
+        ).group_by(Category.name, Category.icon, Category.type).order_by(desc("total")).all()
+        
+        if not res:
+            await message.answer("Belum ada data transaksi bulan ini buat di-breakdown, Bos!", reply_markup=get_main_keyboard())
+            return
+            
+        expenses = [r for r in res if r[2] == "expense"]
+        incomes = [r for r in res if r[2] == "income"]
+        
+        text = f"📑 **Breakdown Kategori ({now.strftime('%B %Y')})**\n\n"
+        if expenses:
+            text += "🔴 **Pengeluaran:**\n"
+            total_exp = sum(r[3] for r in expenses)
+            for name, icon, _, total in expenses:
+                pct = (total / total_exp * 100) if total_exp > 0 else 0
+                text += f"• {icon} {name}: Rp {total:,.0f} ({pct:.1f}%)\n"
+            text += "\n"
+            
+        if incomes:
+            text += "🟢 **Pemasukan:**\n"
+            for name, icon, _, total in incomes:
+                text += f"• {icon} {name}: Rp {total:,.0f}\n"
+                
+        await message.answer(text, parse_mode="Markdown", reply_markup=get_main_keyboard())
+    finally:
+        db.close()
+
 @dp.message(Command("categories"))
 async def cmd_categories(message: Message):
     if bot is None:
@@ -342,6 +504,39 @@ async def cmd_categories(message: Message):
             text += f"  {cat.icon} {cat.name}\n"
             
         await message.answer(text, reply_markup=get_main_keyboard())
+    finally:
+        db.close()
+
+@dp.message(Command("reset"))
+async def cmd_reset(message: Message):
+    if bot is None:
+        await message.answer("Bot not configured. Please set BOT_TOKEN environment variable.")
+        return
+        
+    db = SessionLocal()
+    try:
+        # Check active non-archived transactions
+        count = db.query(Transaction).filter(Transaction.archived == False).count()
+        if count == 0:
+            await message.answer("ℹ️ Tidak ada transaksi aktif yang perlu di-reset saat ini, Bos!", reply_markup=get_main_keyboard())
+            return
+            
+        # Get totals before reset
+        inc = db.query(func.sum(Transaction.amount)).filter(Transaction.type == "income", Transaction.archived == False).scalar() or 0.0
+        exp = db.query(func.sum(Transaction.amount)).filter(Transaction.type == "expense", Transaction.archived == False).scalar() or 0.0
+        
+        # Soft-archive
+        db.query(Transaction).filter(Transaction.archived == False).update({Transaction.archived: True})
+        db.commit()
+        
+        text = (
+            "🔄 **Bulan Berhasil Di-Reset!**\n\n"
+            f"📦 **{count} transaksi** telah diarsipkan ke riwayat bulanan.\n"
+            f"💰 Rekap akhir: Masuk `Rp {inc:,.0f}` | Keluar `Rp {exp:,.0f}` | Sisa `Rp {inc-exp:,.0f}`\n\n"
+            "✨ Sekarang saldo aktif kembali ke **Rp 0** untuk memulai bulan baru!\n"
+            "Riwayat sebelumnya tetap tersimpan rapi di tab/arsip riwayat bulanan web & bot. 🚀"
+        )
+        await message.answer(text, parse_mode="Markdown", reply_markup=get_main_keyboard())
     finally:
         db.close()
 
