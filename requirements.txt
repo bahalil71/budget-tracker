@@ -1,0 +1,6 @@
+fastapi>=0.110.0
+uvicorn[standard]>=0.28.0
+aiogram>=3.4.1
+sqlalchemy>=2.0.28
+pydantic-settings>=2.2.1
+python-multipart>=0.0.9
