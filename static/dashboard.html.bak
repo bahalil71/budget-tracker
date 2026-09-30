@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Budget Tracker — Dashboard</title>
+  <style>
+  :root {
+    --bg: #0b1220;
+    --surface: #111b2b;
+    --surface-2: #162233;
+    --text: #eaf2ff;
+    --muted: #8aa3c9;
+    --accent: #4ade80;
+    --accent-2: #60a5fa;
+    --danger: #f87171;
+    --warn: #fbbf24;
+    --border: #1f2f45;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    background: radial-gradient(1200px 800px at 10% -10%, #12233d 0%, #0b1220 45%) fixed, #0b1220;
+    color: var(--text);
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 24px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+  header h1 { font-size: 22px; margin: 0; letter-spacing: 0.2px; }
+  header .badge { font-size: 12px; color: var(--muted); border: 1px solid var(--border); padding: 6px 10px; border-radius: 999px; }
+  
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; }
+  .card .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; }
+  .card .value { font-size: 26px; font-weight: 700; margin-top: 6px; }
+  .card .value.income { color: var(--accent); }
+  .card .value.expense { color: var(--danger); }
+  .card .value.balance { color: var(--accent-2); }
+  
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; margin-bottom: 18px; }
+  .panel h2 { font-size: 16px; margin: 0 0 10px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .field { display: flex; flex-direction: column; gap: 6px; flex: 1 1 140px; }
+  .field label { font-size: 12px; color: var(--muted); }
+  .field input, .field select { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+  button { background: #1f2f45; color: var(--text); border: 1px solid #2a3f5f; padding: 10px 14px; border-radius: 10px; cursor: pointer; font-weight: 600; }
+  button:hover { background: #244060; }
+  
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); font-size: 14px; }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .pill { display: inline-block; padding: 4px 8px; border-radius: 999px; font-size: 12px; border: 1px solid var(--border); }
+  .pill.income { color: #bbf7d0; border-color: #14532d; background: #052e16; }
+  .pill.expense { color: #fecaca; border-color: #7f1d1d; background: #450a0a; }
+  .muted { color: var(--muted); }
+  .error { color: var(--danger); }
+  
+  @media (max-width: 720px) {
+    .grid { grid-template-columns: 1fr; }
+    .row { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>💰 Budget Tracker</h1>
+    <div class="badge" id="clock"></div>
+  </header>
+  
+  <section class="grid">
+    <div class="card">
+      <div class="label">Income</div>
+      <div class="value income" id="income">—</div>
+    </div>
+    <div class="card">
+      <div class="label">Expense</div>
+      <div class="value expense" id="expense">—</div>
+    </div>
+    <div class="card">
+      <div class="label">Balance</div>
+      <div class="value balance" id="balance">—</div>
+    </div>
+  </section>
+  
+  <section class="panel">
+    <h2>Add Transaction</h2>
+    <form id="txForm" class="row">
+      <div class="field">
+        <label>Type</label>
+        <select id="type">
+          <option value="expense">Expense</option>
+          <option value="income">Income</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Amount</label>
+        <input id="amount" type="number" step="0.01" min="0" placeholder="50000" required />
+      </div>
+      <div class="field">
+        <label>Category</label>
+        <select id="category"></select>
+      </div>
+      <div class="field">
+        <label>Description</label>
+        <input id="description" placeholder="Groceries, salary, etc." />
+      </div>
+      <div class="field" style="flex:0 0 auto; align-self:flex-end;">
+        <button type="submit">Save</button>
+      </div>
+    </form>
+    <div id="formMsg" class="muted" style="margin-top:8px;"></div>
+  </section>
+  
+  <section class="panel">
+    <h2>Recent Transactions</h2>
+    <div style="overflow:auto">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Category</th>
+            <th>Description</th>
+            <th style="text-align:right">Amount</th>
+          </tr>
+        </thead>
+        <tbody id="txList"></tbody>
+      </table>
+    </div>
+  </section>
+  
+  <section class="panel">
+    <h2>📜 Riwayat Bulanan (Arsip)</h2>
+    <p class="muted" style="font-size:0.85rem; margin-bottom:12px">Data bulan-bulan sebelumnya tersimpan di sini. Klik "Reset Bulan Ini" di bawah untuk mengarsipkan transaksi aktif dan mulai saldo baru.</p>
+    <div style="overflow:auto">
+      <table>
+        <thead>
+          <tr>
+            <th>Bulan</th>
+            <th style="text-align:right">Pemasukan</th>
+            <th style="text-align:right">Pengeluaran</th>
+            <th style="text-align:right">Saldo</th>
+            <th style="text-align:right">Transaksi</th>
+          </tr>
+        </thead>
+        <tbody id="historyList"></tbody>
+      </table>
+    </div>
+    <div style="margin-top:16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap">
+      <button type="button" id="resetBtn" style="background:#7f1d1d; border-color:#991b1b">🔄 Reset Bulan Ini (Arsipkan)</button>
+      <span class="muted" id="resetMsg" style="font-size:0.85rem"></span>
+    </div>
+  </section>
+</div>
+  
+<script>
+const API = window.location.origin;
+const els = {
+  income: document.getElementById('income'),
+  expense: document.getElementById('expense'),
+  balance: document.getElementById('balance'),
+  category: document.getElementById('category'),
+  txList: document.getElementById('txList'),
+  txForm: document.getElementById('txForm'),
+  formMsg: document.getElementById('formMsg'),
+};
+
+function fmt(n) {
+  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n || 0);
+}
+
+function fmtDate(s) {
+  try { return new Date(s).toLocaleString('id-ID'); } catch (e) { return s || '—'; }
+}
+
+async function loadStats() {
+  const r = await fetch(`${API}/stats/`).catch(() => null);
+  const d = r && r.ok ? await r.json() : null;
+  if (!d) return;
+  els.income.textContent = fmt(d.total_income);
+  els.expense.textContent = fmt(d.total_expense);
+  els.balance.textContent = fmt(d.balance);
+}
+
+async function loadCategories() {
+  const r = await fetch(`${API}/categories/`).catch(() => null);
+  const list = r && r.ok ? await r.json() : [];
+  els.category.innerHTML = list.map(c => `<option value=\"${c.id}\">${c.icon} ${c.name} (${c.type})</option>`).join('');
+}
+
+async function loadTransactions() {
+  const r = await fetch(`${API}/transactions/?limit=20`).catch(() => null);
+  const list = r && r.ok ? await r.json() : [];
+  els.txList.innerHTML = list.map(t => `\n    <tr>\n      <td class=\"muted\">${fmtDate(t.date)}</td>\n      <td><span class=\"pill ${t.type}\">${t.type}</span></td>\n      <td>${t.category_id}</td>\n      <td>${escapeHtml(t.description || '')}</td>\n      <td style=\"text-align:right; font-variant-numeric: tabular-nums\">${fmt(t.amount)}</td>\n    </tr>\n  `).join('');
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&','<':'<','>':'>','\"':'"',\"'\":'''}[c]));
+}
+
+els.txForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const payload = {
+    amount: parseFloat(document.getElementById('amount').value || '0'),
+    category_id: parseInt(document.getElementById('category').value || '0', 10),
+    description: document.getElementById('description').value || '',
+    type: document.getElementById('type').value,
+    date: new Date().toISOString(),
+    is_recurring: false
+  };
+  const r = await fetch(`${API}/transactions/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }).catch(() => null);
+  const ok = r && r.ok;
+  els.formMsg.textContent = ok ? 'Saved ✅' : 'Failed ❌';
+  els.formMsg.className = ok ? '' : 'error';
+  if (ok) {
+    els.txForm.reset();
+    loadStats();
+    await loadTransactions();
+  }
+});
+
+const resetBtn = document.getElementById('resetBtn');
+const resetMsg = document.getElementById('resetMsg');
+const historyList = document.getElementById('historyList');
+
+async function loadHistory() {
+  const r = await fetch(`${API}/history-months/`).catch(() => null);
+  const list = r && r.ok ? await r.json() : [];
+  historyList.innerHTML = list.map(h => `\n    <tr>\n      <td class=\"muted\">${h.month}</td>\n      <td style=\"text-align:right; color:#22c55e\">${fmt(h.income)}</td>\n      <td style=\"text-align:right; color:#ef4444\">${fmt(h.expense)}</td>\n      <td style=\"text-align:right; color:${h.balance >= 0 ? '#22c55e' : '#ef4444'}\">${fmt(h.balance)}</td>\n      <td style=\"text-align:right\">${h.transactions}</td>\n    </tr>\n  `).join('');
+}
+
+async function handleReset() {
+  resetBtn.disabled = true;
+  resetBtn.textContent = 'Memproses...';
+  resetMsg.textContent = '';
+  resetMsg.className = 'muted';
+  
+  const r = await fetch(`${API}/reset-month/`, { method: 'POST' }).catch(() => null);
+  if (!r || !r.ok) {
+    resetMsg.textContent = 'Gagal reset ❌';
+    resetMsg.className = 'error';
+  } else {
+    const d = await r.json();
+    resetMsg.textContent = `✅ ${d.archived_transactions} transaksi diarsipkan. Saldo aktif kembali ke Rp 0.`;
+    resetMsg.className = 'success';
+    await loadStats();
+    await loadTransactions();
+    await loadHistory();
+  }
+  resetBtn.disabled = false;
+  resetBtn.textContent = '🔄 Reset Bulan Ini (Arsipkan)';
+}
+
+resetBtn.addEventListener('click', handleReset);
+
+(async function init() {
+  await loadCategories();
+  await loadStats();
+  await loadTransactions();
+  await loadHistory();
+  setInterval(loadStats, 15000);
+})();
+</script>
+</body>
+</html>

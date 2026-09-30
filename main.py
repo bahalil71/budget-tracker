@@ -261,6 +261,33 @@ async def get_history_months(db: Session = Depends(get_db)):
         
     return list(months_dict.values())
 
+@app.get("/report/")
+async def get_report(db: Session = Depends(get_db)):
+    """Category breakdown for the current month (non-archived)."""
+    now = datetime.utcnow()
+    start_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    res = db.query(
+        Category.id, Category.name, Category.icon, Category.type,
+        func.sum(Transaction.amount).label("total"),
+        func.count(Transaction.id).label("count")
+    ).join(Transaction, Transaction.category_id == Category.id).filter(
+        Transaction.date >= start_month,
+        Transaction.archived == False
+    ).group_by(Category.id, Category.name, Category.icon, Category.type).all()
+
+    out = []
+    for cid, name, icon, ctype, total, count in res:
+        out.append({
+            "category_id": cid, "name": name, "icon": icon,
+            "type": ctype, "total": float(total or 0), "count": count
+        })
+    out.sort(key=lambda r: r["total"], reverse=True)
+
+    total_expense = sum(r["total"] for r in out if r["type"] == "expense")
+    for r in out:
+        r["pct"] = round(r["total"] / total_expense * 100, 1) if (r["type"] == "expense" and total_expense > 0) else 0.0
+    return {"month": start_month.strftime("%Y-%m"), "total_expense": total_expense, "categories": out}
+
 @app.get("/stats/", response_model=StatsResponse)
 async def get_stats(
     period_start: Optional[date] = None,
