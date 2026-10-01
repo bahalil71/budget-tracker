@@ -404,9 +404,9 @@ def get_main_keyboard():
     builder.add(KeyboardButton(text="/stats"))
     builder.add(KeyboardButton(text="/report"))
     builder.add(KeyboardButton(text="/recent"))
-    builder.add(KeyboardButton(text="/categories"))
+    # Replace /categories with a direct link button to Cloudflare dashboard
+    builder.add(KeyboardButton(text="🌐 Dashboard Web", url=PUBLIC_URL))
     builder.add(KeyboardButton(text="/reset"))
-    builder.add(KeyboardButton(text="🌐 Web Dashboard"))
     builder.adjust(2)
     return builder.as_markup(resize_keyboard=True)
 
