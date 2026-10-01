@@ -394,6 +394,38 @@
       padding: 2px;
       text-align: center;
       line-height: 1.1;
+      overflow: hidden;
+    }
+    /* Mobile: kalender harus tetap 7 kolom tapi ringkas & rapi */
+    @media (max-width: 480px) {
+      .cal-grid { gap: 3px; }
+      .cal-dow { font-size: 8px; letter-spacing: 0; padding-bottom: 2px; }
+      .cal-cell {
+        aspect-ratio: auto;
+        min-height: 40px;
+        min-width: 0;
+        border-radius: 5px;
+        padding: 1px 0;
+        gap: 0;
+      }
+      .cal-cell .cal-day { font-size: 11px; }
+      .cal-cell .cal-amt {
+        font-size: 7px;
+        letter-spacing: -0.04em;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        transform: scale(0.95);
+      }
+      .cal-month-label { font-size: 10px; min-width: 110px; }
+      .cal-legend { font-size: 9px; gap: 8px; }
+      .cal-legend span.sw { width: 8px; height: 8px; }
+    }
+    @media (max-width: 360px) {
+      .cal-grid { gap: 2px; }
+      .cal-cell { min-height: 36px; }
+      .cal-cell .cal-day { font-size: 10px; }
+      .cal-cell .cal-amt { font-size: 6.5px; }
     }
     .cal-cell.empty {
       background: transparent;
@@ -834,9 +866,17 @@ async function loadCalendar() {
   for (const d of days) map.set(d.date, d);
 
   const start = new Date(year, month - 1, 1);
-  const startDow = start.getDay(); // 0 = Minggu
-  const daysInMonth = new Date(year, month, 0).getDate();
-  const todayStr = new Date().toISOString().slice(0, 10);
+          const startDow = start.getDay(); // 0 = Minggu
+          const daysInMonth = new Date(year, month, 0).getDate();
+          const todayStr = new Date().toISOString().slice(0, 10);
+
+          // Format compact untuk kalender: 500.200 -> 500.2k, 1.500.000 -> 1.5M
+          function fmtCal(n) {
+            if (n >= 1e9) return (n/1e9).toFixed(1).replace(/\.0$/, '') + 'M';
+            if (n >= 1e6) return (n/1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+            if (n >= 1e3) return (n/1e3).toFixed(1).replace(/\.0$/, '') + 'k';
+            return String(n);
+          }
 
   // Preserve day-of-week header divs (first 7 elements)
   const dows = `
@@ -867,13 +907,13 @@ async function loadCalendar() {
     if (d.income > 0 || d.expense > 0) {
       if (d.income > d.expense) {
         cls += ' green';
-        amtLabel = `+${fmt(d.income)}`;
+        amtLabel = `+${fmtCal(d.income)}`;
       } else if (d.expense > d.income) {
         cls += ' red';
-        amtLabel = `-${fmt(d.expense)}`;
+        amtLabel = `-${fmtCal(d.expense)}`;
       } else {
         cls += ' neutral';
-        amtLabel = fmt(d.income);
+        amtLabel = fmtCal(d.income);
       }
     } else {
       cls += ' neutral';
