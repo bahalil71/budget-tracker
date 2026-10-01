@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sky Budget — Minimal Cashflow Hub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0e1117;
+      --surface: #161b22;
+      --surface-sub: #1c2128;
+      --border: #30363d;
+      --border-soft: #21262d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --income: #2ea043;
+      --income-soft: rgba(46, 160, 67, 0.15);
+      --expense: #f85149;
+      --expense-soft: rgba(248, 81, 73, 0.15);
+      --accent: #58a6ff;
+      --radius: 10px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      padding: 24px 16px 64px;
+    }
+    .shell {
+      max-width: 960px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Top Bar */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-soft);
+    }
+    .brand {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+    .brand h1 {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .brand .tag {
+      font-size: 12px;
+      color: var(--muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .top-meta {
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .bot-link {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .bot-link:hover { text-decoration: underline; }
+
+    /* 3 Primary Stat Cards */
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    @media (max-width: 640px) {
+      .metrics { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+    }
+    .card-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .card-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .card-num.income { color: var(--income); }
+    .card-num.expense { color: var(--expense); }
+    .card-num.balance { color: var(--text); }
+    .card-num.balance.negative { color: var(--expense); }
+    .card-hint {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    /* 2-Column Split: Form + Breakdown */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 780px) {
+      .main-grid { grid-template-columns: 1fr; }
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+    }
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .panel-title {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text);
+    }
+    .panel-sub {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    /* Form */
+    form.tx-form {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .row-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    @media (max-width: 480px) {
+      .row-2 { grid-template-columns: 1fr; }
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    label {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+    }
+    input, select {
+      background: var(--surface-sub);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 13px;
+      padding: 8px 10px;
+      outline: none;
+    }
+    input:focus, select:focus {
+      border-color: var(--accent);
+    }
+    .btn-save {
+      background: #238636;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 9px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 4px;
+      transition: background 0.15s ease;
+    }
+    .btn-save:hover { background: #2ea043; }
+    .form-status {
+      font-size: 11px;
+      min-height: 14px;
+    }
+    .form-status.ok { color: var(--income); }
+    .form-status.err { color: var(--expense); }
+
+    /* Category Breakdown Bars */
+    .breakdown-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 250px;
+      overflow-y: auto;
+    }
+    .breakdown-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .breakdown-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+    }
+    .breakdown-cat {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text);
+      font-weight: 500;
+    }
+    .breakdown-amount {
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--muted);
+    }
+    .bar-bg {
+      background: var(--surface-sub);
+      border-radius: 4px;
+      height: 6px;
+      overflow: hidden;
+      width: 100%;
+    }
+    .bar-fill {
+      height: 100%;
+      background: var(--expense);
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+    .empty-state {
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+      padding: 24px 8px;
+    }
+
+    /* Tables */
+    .table-wrap {
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th {
+      text-align: left;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border-soft);
+    }
+    td {
+      padding: 10px;
+      border-bottom: 1px solid var(--border-soft);
+    }
+    tr:last-child td { border-bottom: none; }
+    .pill {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 4px;
+      display: inline-block;
+      text-transform: uppercase;
+    }
+    .pill.income {
+      background: var(--income-soft);
+      color: var(--income);
+    }
+    .pill.expense {
+      background: var(--expense-soft);
+      color: var(--expense);
+    }
+    .num {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 500;
+    }
+    .num.right { text-align: right; }
+    .num.income { color: var(--income); }
+    .num.expense { color: var(--expense); }
+
+    /* Archive Action */
+    .reset-action-box {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border-soft);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .btn-reset-period {
+      background: transparent;
+      color: #f85149;
+      border: 1px solid #da3633;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .btn-reset-period:hover {
+      background: var(--expense-soft);
+    }
+    .btn-reset-period:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    footer {
+      text-align: center;
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 12px;
+    }
+  </style>
+</head>
+<body>
+<div class="shell">
+  <!-- Top Bar -->
+  <header>
+    <div class="brand">
+      <h1>Sky Budget</h1>
+      <span class="tag">v2.0 — VPS Engine</span>
+    </div>
+    <div class="top-meta">
+      <span id="currentPeriod">—</span>
+      <span>•</span>
+      <a class="bot-link" href="https://t.me/skybudgetbot" target="_blank" rel="noopener">@skybudgetbot</a>
+    </div>
+  </header>
+
+  <!-- Metrics -->
+  <section class="metrics">
+    <div class="card">
+      <div class="card-label">Pemasukan (Bulan Ini)</div>
+      <div class="card-num income" id="income">Rp 0</div>
+      <div class="card-hint" id="incomeHint">0 transaksi</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Pengeluaran (Bulan Ini)</div>
+      <div class="card-num expense" id="expense">Rp 0</div>
+      <div class="card-hint" id="expenseHint">0 transaksi</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Net Saldo Berjalan</div>
+      <div class="card-num balance" id="balance">Rp 0</div>
+      <div class="card-hint" id="balanceHint">Pemasukan dikurangi pengeluaran</div>
+    </div>
+  </section>
+
+  <!-- 2-Column: Form Input & Real Category Breakdown -->
+  <div class="main-grid">
+    <!-- Form -->
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Catat Transaksi</div>
+        <div class="form-status" id="formStatus"></div>
+      </div>
+      <form class="tx-form" id="txForm">
+        <div class="row-2">
+          <div class="field">
+            <label for="type">Tipe</label>
+            <select id="type">
+              <option value="expense">Pengeluaran</option>
+              <option value="income">Pemasukan</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="amount">Nominal (Rp)</label>
+            <input id="amount" type="number" step="1000" min="100" placeholder="50000" required />
+          </div>
+        </div>
+        <div class="field">
+          <label for="category">Kategori</label>
+          <select id="category" required></select>
+        </div>
+        <div class="field">
+          <label for="description">Catatan / Deskripsi</label>
+          <input id="description" placeholder="Beli kopi, makan siang, invoice client..." />
+        </div>
+        <button type="submit" class="btn-save">Simpan Transaksi</button>
+      </form>
+    </div>
+
+    <!-- Category Breakdown (Real Data) -->
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Pengeluaran per Pos</div>
+        <div class="panel-sub" id="breakdownTotal">Total Rp 0</div>
+      </div>
+      <div class="breakdown-list" id="breakdownList">
+        <div class="empty-state">
+          <strong>Belum ada pengeluaran bulan ini.</strong><br>
+          Tambahkan transaksi pengeluaran melalui form di sebelah kiri, lalu breakdown akan muncul otomatis di sini.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Transactions Table -->
+  <div class="panel">
+    <div class="panel-head">
+      <div class="panel-title">Transaksi Aktif Terbaru</div>
+      <div class="panel-sub" id="recentSub">10 terakhir</div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:130px;">Waktu</th>
+            <th style="width:100px;">Tipe</th>
+            <th>Kategori</th>
+            <th>Keterangan</th>
+            <th style="text-align:right;">Nominal</th>
+          </tr>
+        </thead>
+        <tbody id="txList">
+          <tr><td colspan="5" class="empty-state">Memuat riwayat transaksi...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- History & Reset Panel -->
+  <div class="panel">
+    <div class="panel-head">
+      <div class="panel-title">Arsip Riwayat Bulanan</div>
+      <div class="panel-sub">Disimpan saat periode di-reset</div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Periode</th>
+            <th style="text-align:right;">Pemasukan</th>
+            <th style="text-align:right;">Pengeluaran</th>
+            <th style="text-align:right;">Saldo Akhir</th>
+            <th style="text-align:right;">Total Tx</th>
+          </tr>
+        </thead>
+        <tbody id="historyList">
+          <tr><td colspan="5" class="empty-state">Belum ada arsip riwayat bulan lalu.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="reset-action-box">
+      <div class="panel-sub" style="max-width:550px;">
+        Tekan reset jika bulan telah berganti: transaksi aktif akan diarsipkan ke tabel di atas dan saldo kembali ke Rp 0.
+      </div>
+      <button type="button" class="btn-reset-period" id="resetBtn">Reset Bulan Ini (Arsipkan)</button>
+    </div>
+    <div id="resetFeedback" style="font-size:11px; margin-top:8px;"></div>
+  </div>
+
+  <footer>
+    Berjalan langsung di Linux host (FastAPI + SQLite + aiogram) • Port 8088
+  </footer>
+</div>
+
+<script>
+// Dynamic API URL for Vercel / Remote Hosting
+// Priority: LocalStorage override -> Default Cloudflare Tunnel / VPS Backend
+const DEFAULT_API = 'https://programs-development-suit-amber.trycloudflare.com';
+let savedApi = localStorage.getItem('sky_budget_api');
+const API = (savedApi ? savedApi : (window.location.origin.includes('vercel.app') || window.location.origin.includes('localhost:3000') ? DEFAULT_API : window.location.origin)).replace(/\/$/, '');
+
+const els = {
+  income: document.getElementById('income'),
+  expense: document.getElementById('expense'),
+  balance: document.getElementById('balance'),
+  incomeHint: document.getElementById('incomeHint'),
+  expenseHint: document.getElementById('expenseHint'),
+  balanceHint: document.getElementById('balanceHint'),
+  currentPeriod: document.getElementById('currentPeriod'),
+  type: document.getElementById('type'),
+  amount: document.getElementById('amount'),
+  category: document.getElementById('category'),
+  description: document.getElementById('description'),
+  txForm: document.getElementById('txForm'),
+  formStatus: document.getElementById('formStatus'),
+  breakdownList: document.getElementById('breakdownList'),
+  breakdownTotal: document.getElementById('breakdownTotal'),
+  txList: document.getElementById('txList'),
+  recentSub: document.getElementById('recentSub'),
+  historyList: document.getElementById('historyList'),
+  resetBtn: document.getElementById('resetBtn'),
+  resetFeedback: document.getElementById('resetFeedback')
+};
+
+let allCategories = [];
+
+function fmt(n) {
+  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n || 0);
+}
+
+function fmtDate(s) {
+  try {
+    const d = new Date(s);
+    return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  } catch (e) {
+    return s || '—';
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function loadCategories() {
+  const r = await fetch(`${API}/categories/`).catch(() => null);
+  allCategories = (r && r.ok) ? await r.json() : [];
+  syncCategoryDropdown();
+}
+
+function syncCategoryDropdown() {
+  const currentType = els.type.value;
+  const filtered = allCategories.filter(c => c.type === currentType);
+  els.category.innerHTML = filtered.map(c => `<option value="${c.id}">${c.icon || '•'} ${escapeHtml(c.name)}</option>`).join('');
+}
+els.type.addEventListener('change', syncCategoryDropdown);
+
+async function loadStats() {
+  const r = await fetch(`${API}/stats/`).catch(() => null);
+  if (!r || !r.ok) return;
+  const d = await r.json();
+
+  els.income.textContent = fmt(d.total_income);
+  els.expense.textContent = fmt(d.total_expense);
+  els.balance.textContent = fmt(d.balance);
+  
+  if (d.balance < 0) {
+    els.balance.classList.add('negative');
+  } else {
+    els.balance.classList.remove('negative');
+  }
+
+  const now = new Date();
+  els.currentPeriod.textContent = now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+  els.balanceHint.textContent = `${d.transaction_count} transaksi aktif bulan ini`;
+}
+
+async function loadReport() {
+  const r = await fetch(`${API}/report/`).catch(() => null);
+  if (!r || !r.ok) return;
+  const d = await r.json();
+
+  const expenseCategories = (d.categories || []).filter(c => c.type === 'expense');
+  els.breakdownTotal.textContent = `Total: ${fmt(d.total_expense)}`;
+
+  if (expenseCategories.length === 0) {
+    els.breakdownList.innerHTML = '<div class="empty-state">Belum ada pengeluaran yang tercatat bulan ini.</div>';
+    return;
+  }
+
+  els.breakdownList.innerHTML = expenseCategories.map(c => `
+    <div class="breakdown-item">
+      <div class="breakdown-row">
+        <span class="breakdown-cat">${c.icon || '🏷️'} ${escapeHtml(c.name)} (${c.pct}%)</span>
+        <span class="breakdown-amount">${fmt(c.total)}</span>
+      </div>
+      <div class="bar-bg">
+        <div class="bar-fill" style="width: ${Math.min(100, Math.max(3, c.pct))}%;"></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function loadTransactions() {
+  const r = await fetch(`${API}/transactions/?limit=10`).catch(() => null);
+  if (!r || !r.ok) return;
+  const list = await r.json();
+
+  els.recentSub.textContent = `${list.length} item aktif`;
+
+  if (list.length === 0) {
+    els.txList.innerHTML = '<tr><td colspan="5" class="empty-state">Belum ada transaksi bulan ini. Masukkan di atas atau via Telegram!</td></tr>';
+    return;
+  }
+
+  els.txList.innerHTML = list.map(t => {
+    const isInc = t.type === 'income';
+    const cat = allCategories.find(c => c.id === t.category_id) || { name: 'Umum', icon: '•' };
+    return `
+      <tr>
+        <td style="color:var(--muted); font-size:12px;">${fmtDate(t.date)}</td>
+        <td><span class="pill ${isInc ? 'income' : 'expense'}">${isInc ? 'Masuk' : 'Keluar'}</span></td>
+        <td><strong>${cat.icon || '•'}</strong> ${escapeHtml(cat.name)}</td>
+        <td style="color:var(--muted);">${escapeHtml(t.description || '—')}</td>
+        <td class="num right ${isInc ? 'income' : 'expense'}">${isInc ? '+' : '-'}${fmt(t.amount)}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+async function loadHistory() {
+  const r = await fetch(`${API}/history-months/`).catch(() => null);
+  if (!r || !r.ok) return;
+  const list = await r.json();
+
+  if (list.length === 0) {
+    els.historyList.innerHTML = '<tr><td colspan="5" class="empty-state">Belum ada arsip riwayat bulan lalu. Riwayat muncul setelah menekan tombol reset.</td></tr>';
+    return;
+  }
+
+  els.historyList.innerHTML = list.map(h => `
+    <tr>
+      <td style="font-weight:600; font-family:'JetBrains Mono', monospace;">${h.month}</td>
+      <td class="num right income">${fmt(h.income)}</td>
+      <td class="num right expense">${fmt(h.expense)}</td>
+      <td class="num right" style="color: ${h.balance >= 0 ? 'var(--income)' : 'var(--expense)'}; font-weight:600;">${fmt(h.balance)}</td>
+      <td class="num right" style="color:var(--muted);">${h.transactions} tx</td>
+    </tr>
+  `).join('');
+}
+
+els.txForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const amt = parseFloat(els.amount.value || '0');
+  if (amt <= 0) return;
+
+  const payload = {
+    amount: amt,
+    category_id: parseInt(els.category.value, 10),
+    description: els.description.value.trim(),
+    type: els.type.value,
+    date: new Date().toISOString(),
+    is_recurring: false
+  };
+
+  const r = await fetch(`${API}/transactions/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }).catch(() => null);
+
+  if (r && r.ok) {
+    els.formStatus.textContent = 'Tersimpan';
+    els.formStatus.className = 'form-status ok';
+    els.amount.value = '';
+    els.description.value = '';
+    await Promise.all([loadStats(), loadReport(), loadTransactions()]);
+  } else {
+    els.formStatus.textContent = 'Gagal menyimpan';
+    els.formStatus.className = 'form-status err';
+  }
+  setTimeout(() => { els.formStatus.textContent = ''; }, 3000);
+});
+
+els.resetBtn.addEventListener('click', async () => {
+  const confirmed = confirm('Yakin ingin mereset periode bulan ini?\\n\\nSemua transaksi aktif saat ini akan dipindahkan ke Arsip Riwayat dan saldo berjalan akan mulai dari Rp 0.');
+  if (!confirmed) return;
+
+  els.resetBtn.disabled = true;
+  els.resetBtn.textContent = 'Mengarsipkan...';
+  els.resetFeedback.textContent = '';
+
+  const r = await fetch(`${API}/reset-month/`, { method: 'POST' }).catch(() => null);
+  if (r && r.ok) {
+    const d = await r.json();
+    els.resetFeedback.style.color = 'var(--income)';
+    els.resetFeedback.textContent = `Berhasil! ${d.archived_transactions} transaksi diarsipkan. Saldo aktif kini Rp 0.`;
+    await Promise.all([loadStats(), loadReport(), loadTransactions(), loadHistory()]);
+  } else {
+    els.resetFeedback.style.color = 'var(--expense)';
+    els.resetFeedback.textContent = 'Gagal melakukan reset. Coba lagi.';
+  }
+
+  els.resetBtn.disabled = false;
+  els.resetBtn.textContent = 'Reset Bulan Ini (Arsipkan)';
+});
+
+(async function init() {
+  await loadCategories();
+  await Promise.all([loadStats(), loadReport(), loadTransactions(), loadHistory()]);
+  setInterval(() => {
+    loadStats();
+    loadReport();
+  }, 15000);
+})();
+</script>
+</body>
+</html>
+<!-- Sky Budget Remote API Switcher (for Vercel deployment) -->
+<script>
+  // Allow user to set custom API URL: localStorage.setItem('sky_budget_api', 'https://your-api.example.com');
+  window.SKY_BUDGET_API = API;
+  console.log('Sky Budget API endpoint:', API);
+</script>
