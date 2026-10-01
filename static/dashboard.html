@@ -334,6 +334,126 @@
       cursor: not-allowed;
     }
 
+    /* Calendar (Daily Cashflow Heatmap) */
+    .cal-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .cal-nav {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .btn-cal {
+      background: var(--surface-sub);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn-cal:hover { border-color: var(--accent); }
+    .cal-month-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--muted);
+      min-width: 140px;
+      text-align: center;
+    }
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 6px;
+    }
+    .cal-dow {
+      text-align: center;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding-bottom: 4px;
+    }
+    .cal-cell {
+      aspect-ratio: 1 / 1;
+      border-radius: 7px;
+      border: 1px solid var(--border-soft);
+      background: var(--surface-sub);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1px;
+      font-size: 10px;
+      color: var(--muted);
+      min-height: 42px;
+      padding: 2px;
+      text-align: center;
+      line-height: 1.1;
+    }
+    .cal-cell.empty {
+      background: transparent;
+      border-color: transparent;
+    }
+    .cal-cell .cal-day {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .cal-cell .cal-amt {
+      font-size: 8px;
+      letter-spacing: -0.02em;
+      white-space: nowrap;
+    }
+    .cal-cell.green {
+      background: var(--income-soft);
+      border-color: rgba(46, 160, 67, 0.45);
+    }
+    .cal-cell.green .cal-amt { color: var(--income); }
+    .cal-cell.red {
+      background: var(--expense-soft);
+      border-color: rgba(248, 81, 73, 0.45);
+    }
+    .cal-cell.red .cal-amt { color: var(--expense); }
+    .cal-cell.neutral .cal-amt { color: var(--muted); }
+    .cal-cell.today {
+      box-shadow: inset 0 0 0 1px var(--accent);
+    }
+    .cal-legend {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      margin-top: 10px;
+      font-size: 11px;
+      color: var(--muted);
+      flex-wrap: wrap;
+    }
+    .cal-legend span.sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
+    .sw-green { background: rgba(46,160,67,0.5); }
+    .sw-red { background: rgba(248,81,73,0.5); }
+    .sw-grey { background: var(--surface-sub); border: 1px solid var(--border-soft); }
+
+    /* Delete button in transaction rows */
+    .btn-del {
+      background: transparent;
+      border: 1px solid #da3633;
+      color: #f85149;
+      border-radius: 5px;
+      padding: 2px 8px;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease;
+      white-space: nowrap;
+    }
+    .btn-del:hover { background: var(--expense-soft); }
+    .btn-del:disabled { opacity: 0.4; cursor: not-allowed; }
+
     footer {
       text-align: center;
       font-size: 11px;
@@ -440,10 +560,11 @@
             <th>Kategori</th>
             <th>Keterangan</th>
             <th style="text-align:right;">Nominal</th>
+            <th style="width:70px; text-align:right;">Aksi</th>
           </tr>
         </thead>
         <tbody id="txList">
-          <tr><td colspan="5" class="empty-state">Memuat riwayat transaksi...</td></tr>
+          <tr><td colspan="6" class="empty-state">Memuat riwayat transaksi...</td></tr>
         </tbody>
       </table>
     </div>
@@ -481,6 +602,37 @@
     <div id="resetFeedback" style="font-size:11px; margin-top:8px;"></div>
   </div>
 
+  <!-- Calendar Panel -->
+  <div class="panel">
+    <div class="panel-head">
+      <div class="panel-title">Kalender Kas Harian Bulan Ini</div>
+      <div class="panel-sub" id="calSub">Hijau = Pemasukan > Pengeluaran, Merah = Pengeluaran > Pemasukan</div>
+    </div>
+    <div class="cal-head">
+      <div class="cal-nav">
+        <button type="button" class="btn-cal" id="calPrev">‹</button>
+        <span class="cal-month-label" id="calMonthLabel">Loading…</span>
+        <button type="button" class="btn-cal" id="calNext">›</button>
+      </div>
+    </div>
+    <div class="cal-grid" id="calGrid">
+      <!-- Days of week -->
+      <div class="cal-dow">Min</div>
+      <div class="cal-dow">Sen</div>
+      <div class="cal-dow">Sel</div>
+      <div class="cal-dow">Rab</div>
+      <div class="cal-dow">Kam</div>
+      <div class="cal-dow">Jum</div>
+      <div class="cal-dow">Sab</div>
+      <!-- Day cells will be injected here -->
+    </div>
+    <div class="cal-legend">
+      <span><span class="sw sw-green"></span>Pemasukan > Pengeluaran</span>
+      <span><span class="sw sw-red"></span>Pengeluaran > Pemasukan</span>
+      <span><span class="sw sw-grey"></span>Seimbang / Tidak ada</span>
+    </div>
+  </div>
+
   <footer>
     Berjalan langsung di Linux host (FastAPI + SQLite + aiogram) • Port 8088
   </footer>
@@ -508,8 +660,17 @@ const els = {
   recentSub: document.getElementById('recentSub'),
   historyList: document.getElementById('historyList'),
   resetBtn: document.getElementById('resetBtn'),
-  resetFeedback: document.getElementById('resetFeedback')
+  resetFeedback: document.getElementById('resetFeedback'),
+  calGrid: document.getElementById('calGrid'),
+  calMonthLabel: document.getElementById('calMonthLabel'),
+  calPrev: document.getElementById('calPrev'),
+  calNext: document.getElementById('calNext')
 };
+
+// Calendar state: displayed month (realtime = today)
+let calView = new Date();
+calView.setDate(1);
+calView.setHours(0, 0, 0, 0);
 
 let allCategories = [];
 
@@ -597,7 +758,7 @@ async function loadTransactions() {
   els.recentSub.textContent = `${list.length} item aktif`;
 
   if (list.length === 0) {
-    els.txList.innerHTML = '<tr><td colspan="5" class="empty-state">Belum ada transaksi bulan ini. Masukkan di atas atau via Telegram!</td></tr>';
+    els.txList.innerHTML = '<tr><td colspan="6" class="empty-state">Belum ada transaksi bulan ini. Masukkan di atas atau via Telegram!</td></tr>';
     return;
   }
 
@@ -611,9 +772,30 @@ async function loadTransactions() {
         <td><strong>${cat.icon || '•'}</strong> ${escapeHtml(cat.name)}</td>
         <td style="color:var(--muted);">${escapeHtml(t.description || '—')}</td>
         <td class="num right ${isInc ? 'income' : 'expense'}">${isInc ? '+' : '-'}${fmt(t.amount)}</td>
+        <td style="text-align:right;">
+          <button class="btn-del" data-id="${t.id}" title="Hapus transaksi">Hapus</button>
+        </td>
       </tr>
     `;
   }).join('');
+
+  // Attach delete handlers
+  document.querySelectorAll('#txList .btn-del').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const id = parseInt(e.currentTarget.dataset.id, 10);
+      if (!confirm('Yakin hapus transaksi ini?')) return;
+      e.currentTarget.disabled = true;
+      e.currentTarget.textContent = '...';
+      const r = await fetch(`${API}/transactions/${id}`, { method: 'DELETE' }).catch(() => null);
+      if (r && r.ok) {
+        await Promise.all([loadStats(), loadReport(), loadTransactions(), loadCalendar()]);
+      } else {
+        e.currentTarget.disabled = false;
+        e.currentTarget.textContent = 'Hapus';
+        alert('Gagal menghapus');
+      }
+    });
+  });
 }
 
 async function loadHistory() {
@@ -636,6 +818,99 @@ async function loadHistory() {
     </tr>
   `).join('');
 }
+
+async function loadCalendar() {
+  const year = calView.getFullYear();
+  const month = calView.getMonth() + 1;
+  const label = calView.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+  els.calMonthLabel.textContent = label;
+
+  const r = await fetch(`${API}/daily-summary?year=${year}&month=${month}`).catch(() => null);
+  if (!r || !r.ok) {
+    return;
+  }
+  const days = await r.json();
+  const map = new Map();
+  for (const d of days) map.set(d.date, d);
+
+  const start = new Date(year, month - 1, 1);
+  const startDow = start.getDay(); // 0 = Minggu
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  // Preserve day-of-week header divs (first 7 elements)
+  const dows = `
+    <div class="cal-dow">Min</div>
+    <div class="cal-dow">Sen</div>
+    <div class="cal-dow">Sel</div>
+    <div class="cal-dow">Rab</div>
+    <div class="cal-dow">Kam</div>
+    <div class="cal-dow">Jum</div>
+    <div class="cal-dow">Sab</div>
+  `;
+
+  let cellsHtml = '';
+  // Empty cells before day 1
+  for (let i = 0; i < startDow; i++) {
+    cellsHtml += '<div class="cal-cell empty"></div>';
+  }
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const ds = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const d = map.get(ds) || { income: 0, expense: 0, net: 0 };
+    
+    let cls = 'cal-cell';
+    let amtLabel = '';
+    
+    // Logika warna: 
+    // Jika ada data: hijau bila pemasukan > pengeluaran, merah bila pengeluaran > pemasukan
+    if (d.income > 0 || d.expense > 0) {
+      if (d.income > d.expense) {
+        cls += ' green';
+        amtLabel = `+${fmt(d.income)}`;
+      } else if (d.expense > d.income) {
+        cls += ' red';
+        amtLabel = `-${fmt(d.expense)}`;
+      } else {
+        cls += ' neutral';
+        amtLabel = fmt(d.income);
+      }
+    } else {
+      cls += ' neutral';
+    }
+
+    if (ds === todayStr) {
+      cls += ' today';
+    }
+
+    cellsHtml += `
+      <div class="${cls}">
+        <span class="cal-day">${day}</span>
+        <span class="cal-amt">${amtLabel}</span>
+      </div>
+    `;
+  }
+
+  // Trailing empty cells
+  const totalSlots = startDow + daysInMonth;
+  const rem = totalSlots % 7;
+  if (rem > 0) {
+    for (let i = 0; i < (7 - rem); i++) {
+      cellsHtml += '<div class="cal-cell empty"></div>';
+    }
+  }
+
+  els.calGrid.innerHTML = dows + cellsHtml;
+}
+
+function moveCalendar(delta) {
+  calView = new Date(calView.getFullYear(), calView.getMonth() + delta, 1);
+  calView.setHours(0, 0, 0, 0);
+  loadCalendar();
+}
+
+els.calPrev.addEventListener('click', () => moveCalendar(-1));
+els.calNext.addEventListener('click', () => moveCalendar(1));
 
 els.txForm.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -695,10 +970,11 @@ els.resetBtn.addEventListener('click', async () => {
 
 (async function init() {
   await loadCategories();
-  await Promise.all([loadStats(), loadReport(), loadTransactions(), loadHistory()]);
+  await Promise.all([loadStats(), loadReport(), loadTransactions(), loadHistory(), loadCalendar()]);
   setInterval(() => {
     loadStats();
     loadReport();
+    loadCalendar();
   }, 15000);
 })();
 </script>

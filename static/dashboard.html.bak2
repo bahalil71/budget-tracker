@@ -660,17 +660,8 @@ const els = {
   recentSub: document.getElementById('recentSub'),
   historyList: document.getElementById('historyList'),
   resetBtn: document.getElementById('resetBtn'),
-  resetFeedback: document.getElementById('resetFeedback'),
-  calGrid: document.getElementById('calGrid'),
-  calMonthLabel: document.getElementById('calMonthLabel'),
-  calPrev: document.getElementById('calPrev'),
-  calNext: document.getElementById('calNext')
+  resetFeedback: document.getElementById('resetFeedback')
 };
-
-// Calendar state: displayed month (realtime = today)
-let calView = new Date();
-calView.setDate(1);
-calView.setHours(0, 0, 0, 0);
 
 let allCategories = [];
 
@@ -758,7 +749,7 @@ async function loadTransactions() {
   els.recentSub.textContent = `${list.length} item aktif`;
 
   if (list.length === 0) {
-    els.txList.innerHTML = '<tr><td colspan="6" class="empty-state">Belum ada transaksi bulan ini. Masukkan di atas atau via Telegram!</td></tr>';
+    els.txList.innerHTML = '<tr><td colspan="5" class="empty-state">Belum ada transaksi bulan ini. Masukkan di atas atau via Telegram!</td></tr>';
     return;
   }
 
@@ -772,30 +763,9 @@ async function loadTransactions() {
         <td><strong>${cat.icon || '•'}</strong> ${escapeHtml(cat.name)}</td>
         <td style="color:var(--muted);">${escapeHtml(t.description || '—')}</td>
         <td class="num right ${isInc ? 'income' : 'expense'}">${isInc ? '+' : '-'}${fmt(t.amount)}</td>
-        <td style="text-align:right;">
-          <button class="btn-del" data-id="${t.id}" title="Hapus transaksi">Hapus</button>
-        </td>
       </tr>
     `;
   }).join('');
-
-  // Attach delete handlers
-  document.querySelectorAll('#txList .btn-del').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      const id = parseInt(e.currentTarget.dataset.id, 10);
-      if (!confirm('Yakin hapus transaksi ini?')) return;
-      e.currentTarget.disabled = true;
-      e.currentTarget.textContent = '...';
-      const r = await fetch(`${API}/transactions/${id}`, { method: 'DELETE' }).catch(() => null);
-      if (r && r.ok) {
-        await Promise.all([loadStats(), loadReport(), loadTransactions(), loadCalendar()]);
-      } else {
-        e.currentTarget.disabled = false;
-        e.currentTarget.textContent = 'Hapus';
-        alert('Gagal menghapus');
-      }
-    });
-  });
 }
 
 async function loadHistory() {
@@ -818,99 +788,6 @@ async function loadHistory() {
     </tr>
   `).join('');
 }
-
-async function loadCalendar() {
-  const year = calView.getFullYear();
-  const month = calView.getMonth() + 1;
-  const label = calView.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-  els.calMonthLabel.textContent = label;
-
-  const r = await fetch(`${API}/daily-summary?year=${year}&month=${month}`).catch(() => null);
-  if (!r || !r.ok) {
-    return;
-  }
-  const days = await r.json();
-  const map = new Map();
-  for (const d of days) map.set(d.date, d);
-
-  const start = new Date(year, month - 1, 1);
-  const startDow = start.getDay(); // 0 = Minggu
-  const daysInMonth = new Date(year, month, 0).getDate();
-  const todayStr = new Date().toISOString().slice(0, 10);
-
-  // Preserve day-of-week header divs (first 7 elements)
-  const dows = `
-    <div class="cal-dow">Min</div>
-    <div class="cal-dow">Sen</div>
-    <div class="cal-dow">Sel</div>
-    <div class="cal-dow">Rab</div>
-    <div class="cal-dow">Kam</div>
-    <div class="cal-dow">Jum</div>
-    <div class="cal-dow">Sab</div>
-  `;
-
-  let cellsHtml = '';
-  // Empty cells before day 1
-  for (let i = 0; i < startDow; i++) {
-    cellsHtml += '<div class="cal-cell empty"></div>';
-  }
-
-  for (let day = 1; day <= daysInMonth; day++) {
-    const ds = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    const d = map.get(ds) || { income: 0, expense: 0, net: 0 };
-    
-    let cls = 'cal-cell';
-    let amtLabel = '';
-    
-    // Logika warna: 
-    // Jika ada data: hijau bila pemasukan > pengeluaran, merah bila pengeluaran > pemasukan
-    if (d.income > 0 || d.expense > 0) {
-      if (d.income > d.expense) {
-        cls += ' green';
-        amtLabel = `+${fmt(d.income)}`;
-      } else if (d.expense > d.income) {
-        cls += ' red';
-        amtLabel = `-${fmt(d.expense)}`;
-      } else {
-        cls += ' neutral';
-        amtLabel = fmt(d.income);
-      }
-    } else {
-      cls += ' neutral';
-    }
-
-    if (ds === todayStr) {
-      cls += ' today';
-    }
-
-    cellsHtml += `
-      <div class="${cls}">
-        <span class="cal-day">${day}</span>
-        <span class="cal-amt">${amtLabel}</span>
-      </div>
-    `;
-  }
-
-  // Trailing empty cells
-  const totalSlots = startDow + daysInMonth;
-  const rem = totalSlots % 7;
-  if (rem > 0) {
-    for (let i = 0; i < (7 - rem); i++) {
-      cellsHtml += '<div class="cal-cell empty"></div>';
-    }
-  }
-
-  els.calGrid.innerHTML = dows + cellsHtml;
-}
-
-function moveCalendar(delta) {
-  calView = new Date(calView.getFullYear(), calView.getMonth() + delta, 1);
-  calView.setHours(0, 0, 0, 0);
-  loadCalendar();
-}
-
-els.calPrev.addEventListener('click', () => moveCalendar(-1));
-els.calNext.addEventListener('click', () => moveCalendar(1));
 
 els.txForm.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -970,11 +847,10 @@ els.resetBtn.addEventListener('click', async () => {
 
 (async function init() {
   await loadCategories();
-  await Promise.all([loadStats(), loadReport(), loadTransactions(), loadHistory(), loadCalendar()]);
+  await Promise.all([loadStats(), loadReport(), loadTransactions(), loadHistory()]);
   setInterval(() => {
     loadStats();
     loadReport();
-    loadCalendar();
   }, 15000);
 })();
 </script>

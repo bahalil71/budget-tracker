@@ -228,55 +228,6 @@ async def create_transaction(transaction: TransactionCreate, db: Session = Depen
     db.refresh(db_transaction)
     return db_transaction
 
-@app.delete("/transactions/{transaction_id}")
-async def delete_transaction(transaction_id: int, db: Session = Depends(get_db)):
-    tx = db.query(Transaction).filter(Transaction.id == transaction_id).first()
-    if not tx:
-        raise HTTPException(status_code=404, detail="Transaction not found")
-    db.delete(tx)
-    db.commit()
-    return {"status": "success", "deleted_id": transaction_id}
-
-@app.get("/daily-summary")
-async def get_daily_summary(year: int, month: int, db: Session = Depends(get_db)):
-    # Validate month
-    if month < 1 or month > 12:
-        raise HTTPException(status_code=400, detail="Invalid month")
-    start_date = datetime(year, month, 1)
-    if month == 12:
-        end_date = datetime(year+1, 1, 1)
-    else:
-        end_date = datetime(year, month+1, 1)
-    # Query transactions within range (including archived? we'll include all for history)
-    res = db.query(
-        func.strftime('%Y-%m-%d', Transaction.date).label('day'),
-        Transaction.type,
-        func.sum(Transaction.amount).label('total')
-    ).filter(
-        Transaction.date >= start_date,
-        Transaction.date < end_date
-    ).group_by(
-        func.strftime('%Y-%m-%d', Transaction.date),
-        Transaction.type
-    ).all()
-    # Aggregate per day
-    from collections import defaultdict
-    daily = defaultdict(lambda: {'income': 0.0, 'expense': 0.0})
-    for day, tx_type, total in res:
-        daily[day][tx_type] = float(total or 0)
-    # Build list sorted by day
-    out = []
-    for day in sorted(daily.keys()):
-        inc = daily[day]['income']
-        exp = daily[day]['expense']
-        out.append({
-            'date': day,
-            'income': inc,
-            'expense': exp,
-            'net': inc - exp
-        })
-    return out
-
 @app.post("/reset-month/")
 async def reset_month(db: Session = Depends(get_db)):
     """Reset current active period by archiving all unarchived transactions."""
